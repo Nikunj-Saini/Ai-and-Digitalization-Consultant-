@@ -1,0 +1,10 @@
+listen i have to make a ai and digitilisation consultance  in which i have to make a agent
+which take the problem statement  and suggest the best n possible solution  for example
+efforts wasted in  managing ppt   so the agent suggest the best n possible solution
+then it takes the requirements it  the requirements are not clear  it ask 
+moreinformation it needed if clear then okay if not it ask for more information  itasks  maximum twice for more information after that if have to give minumum three solution  and if the user clicked on or liked any solution  then it provide the the bussiness require document and  project reired document   and how to solve the  problem and the success criteria and benefits    
+
+
+
+
+first i want you to tell how it can be made  the  roadmap 

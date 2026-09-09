@@ -1,0 +1,37 @@
+# Environment & API Secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+venv/
+.venv/
+ENV/
+env/
+
+# Databases
+*.db
+*.sqlite3
+
+# Node / React
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+
+# Exports & Generated Media
+backend/static/exports/*
+!backend/static/exports/.gitkeep
+
+# IDE & System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
