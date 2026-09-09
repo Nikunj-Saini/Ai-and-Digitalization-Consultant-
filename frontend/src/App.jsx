@@ -8,6 +8,7 @@ import DeepAnalysisView from './components/DeepAnalysisView';
 import DocumentHub from './components/DocumentHub';
 import LoadingModal from './components/LoadingModal';
 import HistoryDrawer from './components/HistoryDrawer';
+import Footer from './components/Footer';
 import {
   submitProblem,
   submitClarification,
@@ -420,6 +421,8 @@ export default function App() {
           )}
         </>
       )}
+
+      <Footer />
     </div>
   );
 }

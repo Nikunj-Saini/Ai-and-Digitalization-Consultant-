@@ -221,7 +221,7 @@ export default function ClarificationChat({
                       handleSubmit(e);
                     }
                   }}
-                  placeholder="Type your response to the AI Agent... (Shift + Enter to send, Enter for new line)"
+                  placeholder="Type your response to the AI Agent..."
                   rows={3}
                   style={{
                     width: '100%',
@@ -238,7 +238,7 @@ export default function ClarificationChat({
                 />
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    Press <kbd style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)', color: '#49dcb1' }}>Shift + Enter</kbd> to send • <kbd style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)', color: '#e2e8f0' }}>Enter</kbd> for new line
+                    Press <kbd style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)', color: '#49dcb1' }}>Shift + Enter</kbd> to send • <kbd style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)', color: '#e2e8f0' }}>Enter</kbd> for next line
                   </span>
                   <button type="submit" className="btn-primary" disabled={loading || !answerText.trim()} style={{ padding: '9px 20px', fontSize: '0.9rem' }}>
                     {loading ? 'Sending...' : <><Send size={15} /> Send Reply</>}

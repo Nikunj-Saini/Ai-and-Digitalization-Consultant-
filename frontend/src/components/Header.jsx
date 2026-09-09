@@ -19,10 +19,10 @@ export default function Header({ onReset, stage, onOpenHistory, historyCount = 0
         </div>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800, background: 'linear-gradient(90deg, #ffffff 0%, #cbd5e1 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Digitalization Advisor
+            Transformation Advisor
           </h1>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>Enterprise AI Agent Engine</span>
+            <span>AI-Powered Advisory Engine</span>
             <span style={{ color: '#25353c' }}>•</span>
             <span style={{ color: '#49dcb1', display: 'inline-flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
               <Sparkles size={12} /> Advisory AI Agent

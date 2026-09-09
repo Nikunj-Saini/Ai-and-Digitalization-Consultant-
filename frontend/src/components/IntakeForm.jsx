@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Send, Sparkles, Lightbulb, AlertCircle } from 'lucide-react';
 
 const SAMPLE_PROBLEMS = [
-  "Project Management Slide Deck Overhaul",
-  "Automate invoice extraction & GL posting",
-  "Customer support email backlog triage bot",
-  "Automate lead qualification & CRM updates"
+  "Revamp Project Status Decks",
+  "Automate Invoice-to-GL Posting",
+  "Triage Support Email Backlog",
+  "Automate Lead Qualification & CRM Sync"
 ];
 
 export default function IntakeForm({ onSubmit, loading, initialValue = '' }) {
@@ -29,13 +29,13 @@ export default function IntakeForm({ onSubmit, loading, initialValue = '' }) {
   };
 
   const handleChipClick = (sample) => {
-    if (sample === "Project Management Slide Deck Overhaul") {
+    if (sample === "Revamp Project Status Decks") {
       setProblemText("Efforts wasted in managing PowerPoint slide decks across 50 project managers every week.");
-    } else if (sample === "Automate invoice extraction & GL posting") {
+    } else if (sample === "Automate Invoice-to-GL Posting") {
       setProblemText("Manual invoice data extraction causing 3-day payment processing delays.");
-    } else if (sample === "Customer support email backlog triage bot") {
+    } else if (sample === "Triage Support Email Backlog") {
       setProblemText("Customer support team struggling with high triage backlog across email and chat channels.");
-    } else if (sample === "Automate lead qualification & CRM updates") {
+    } else if (sample === "Automate Lead Qualification & CRM Sync") {
       setProblemText("Sales reps spending 20 hours a week manually qualifying leads and updating CRM data.");
     } else {
       setProblemText(sample);
@@ -59,13 +59,13 @@ export default function IntakeForm({ onSubmit, loading, initialValue = '' }) {
           marginBottom: '14px',
           border: '1px solid rgba(73, 220, 177, 0.25)'
         }}>
-          <Sparkles size={16} /> What problem are you facing?
+          <Sparkles size={16} /> What's slowing you down? Tell us what to fix
         </div>
         <h2 style={{ fontSize: '1.9rem', fontWeight: 800, marginBottom: '10px', color: '#ffffff' }}>
-          What digital or process challenge can we solve for you?
+          What operational challenge should we tackle first?
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.96rem' }}>
-          Describe your operational bottlenecks, manual effort waste, or technology goals.
+          Share your pain points — inefficiencies, wasted hours, or outdated tools.
         </p>
       </div>
 
@@ -80,7 +80,7 @@ export default function IntakeForm({ onSubmit, loading, initialValue = '' }) {
                 handleSubmit(e);
               }
             }}
-            placeholder="What problem are you facing? (Shift + Enter to submit, Enter for new line)"
+            placeholder="Describe the challenge in your own words"
             rows={5}
             style={{
               width: '100%',
@@ -104,9 +104,9 @@ export default function IntakeForm({ onSubmit, loading, initialValue = '' }) {
               e.target.style.boxShadow = 'none';
             }}
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginTop: '6px' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              Press <kbd style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)', color: '#49dcb1' }}>Shift + Enter</kbd> to submit • <kbd style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)', color: '#e2e8f0' }}>Enter</kbd> for new line
+              Press <kbd style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)', color: '#49dcb1' }}>Shift + Enter</kbd> to send • <kbd style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)', color: '#e2e8f0' }}>Enter</kbd> for next line
             </span>
           </div>
           {error && (
@@ -135,7 +135,7 @@ export default function IntakeForm({ onSubmit, loading, initialValue = '' }) {
             alignItems: 'center',
             gap: '6px'
           }}>
-            <Sparkles size={14} /> QUICK STARTS
+            <Sparkles size={14} /> TRY AN EXAMPLE
           </p>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
@@ -177,11 +177,11 @@ export default function IntakeForm({ onSubmit, loading, initialValue = '' }) {
           <button type="submit" className="btn-primary" disabled={loading} style={{ padding: '14px 28px', fontSize: '1rem' }}>
             {loading ? (
               <>
-                Analyzing Problem with Agent...
+                Analyzing Challenge with Agent...
               </>
             ) : (
               <>
-                <Send size={18} /> Analyze & Start Advisory Process
+                <Send size={18} /> Start My Advisory Session
               </>
             )}
           </button>
