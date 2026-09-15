@@ -2,14 +2,15 @@ services:
   - type: web
     name: digitalization-advisor-backend
     env: python
+    plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
-        value: sqlite:////var/data/digitalization_advisor.db
+        value: sqlite:///./digitalization_advisor.db
       - key: EXPORTS_DIR
-        value: /var/data/exports
+        value: ./static/exports
       - key: ALLOWED_ORIGINS
         value: "*"
       - key: GEMINI_API_KEY
@@ -18,7 +19,3 @@ services:
         value: gemini-2.0-flash
       - key: GROQ_API_KEY
         sync: false
-    disk:
-      name: sqlite-data
-      mountPath: /var/data
-      sizeGB: 1
