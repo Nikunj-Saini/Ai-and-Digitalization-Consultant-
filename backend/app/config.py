@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     EXPORTS_DIR: str = os.getenv("EXPORTS_DIR", "./static/exports")
+    ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "*")
     
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

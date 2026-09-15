@@ -36,10 +36,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware for React frontend communication
+# CORS middleware for React frontend communication (supports Netlify domain & local dev)
+raw_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+cors_origins = ["*"] if not raw_origins or "*" in raw_origins else raw_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows local dev frontend from 5173/3000/any origin
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
