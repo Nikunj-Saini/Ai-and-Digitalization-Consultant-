@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from datetime import datetime
 from docx import Document
@@ -29,20 +30,58 @@ def _set_cell_margins(cell, top=140, bottom=140, left=180, right=180):
     tcMar = parse_xml(f'<w:tcMar {nsdecls("w")}><w:top w:w="{top}" w:type="dxa"/><w:bottom w:w="{bottom}" w:type="dxa"/><w:left w:w="{left}" w:type="dxa"/><w:right w:w="{right}" w:type="dxa"/></w:tcMar>')
     tcPr.append(tcMar)
 
+def _set_table_borders(table, color="CBD5E1", sz="4", val="single"):
+    """Sets crisp light-gray borders around all cells of a Word table."""
+    tblPr = table._element.xpath('w:tblPr')
+    if tblPr:
+        borders = parse_xml(
+            f'<w:tblBorders {nsdecls("w")}>'
+            f'<w:top w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>'
+            f'<w:left w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>'
+            f'<w:bottom w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>'
+            f'<w:right w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>'
+            f'<w:insideH w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>'
+            f'<w:insideV w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>'
+            f'</w:tblBorders>'
+        )
+        tblPr[0].append(borders)
+
+def _set_col_widths(table, widths):
+    """Sets explicit column widths (in Inches) for a Word table."""
+    for row in table.rows:
+        for idx, width in enumerate(widths):
+            if idx < len(row.cells):
+                row.cells[idx].width = Inches(width)
+
+def _format_cell_paragraph(cell, space_before=2, space_after=2, line_spacing=1.15):
+    """Formats default paragraph inside cell to prevent unwanted extra line height gaps."""
+    for p in cell.paragraphs:
+        p.paragraph_format.space_before = Pt(space_before)
+        p.paragraph_format.space_after = Pt(space_after)
+        p.paragraph_format.line_spacing = line_spacing
+
 class DocumentGenerator:
     def __init__(self):
         self.exports_dir = settings.EXPORTS_DIR
         os.makedirs(self.exports_dir, exist_ok=True)
+
+    def _setup_document_margins(self, doc):
+        """Sets standard 1-inch margins on all sections of the Word document."""
+        for section in doc.sections:
+            section.top_margin = Inches(1.0)
+            section.bottom_margin = Inches(1.0)
+            section.left_margin = Inches(1.0)
+            section.right_margin = Inches(1.0)
 
     def _add_diagram_image(self, doc, image_path: str, caption: str):
         """Embeds a generated flowchart or architecture diagram image into the document with styled caption."""
         if image_path and os.path.exists(image_path):
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p.paragraph_format.space_before = Pt(10)
+            p.paragraph_format.space_before = Pt(12)
             p.paragraph_format.space_after = Pt(4)
             run = p.add_run()
-            run.add_picture(image_path, width=Inches(6.0))
+            run.add_picture(image_path, width=Inches(6.4))
             
             p_cap = doc.add_paragraph()
             p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -56,27 +95,32 @@ class DocumentGenerator:
 
     def _add_styled_header(self, doc, title: str, subtitle: str, doc_code: str = "SPEC-2026-001"):
         """Adds a high-end executive header banner and metadata table to the Word document."""
+        self._setup_document_margins(doc)
+
         p_title = doc.add_paragraph()
         p_title.alignment = WD_ALIGN_PARAGRAPH.LEFT
         p_title.paragraph_format.space_before = Pt(0)
         p_title.paragraph_format.space_after = Pt(4)
         run_title = p_title.add_run(title)
         run_title.font.name = "Arial"
-        run_title.font.size = Pt(20)
+        run_title.font.size = Pt(18)
         run_title.font.bold = True
         run_title.font.color.rgb = RGBColor(15, 118, 110)  # Deep Emerald Teal
 
         p_sub = doc.add_paragraph()
-        p_sub.paragraph_format.space_after = Pt(10)
+        p_sub.paragraph_format.space_after = Pt(12)
         run_sub = p_sub.add_run(f"{subtitle}  |  Ref: {doc_code}  |  Generated: {datetime.now().strftime('%B %d, %Y')}")
         run_sub.font.name = "Arial"
-        run_sub.font.size = Pt(9.0)
+        run_sub.font.size = Pt(8.8)
         run_sub.font.italic = True
         run_sub.font.color.rgb = RGBColor(71, 85, 105)  # Slate gray
 
         # Document Control Table (Professional Emerald Header)
         table = doc.add_table(rows=2, cols=4)
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_table_borders(table, color="CBD5E1", sz="4")
+        _set_col_widths(table, [1.6, 1.6, 1.6, 1.6])
+
         headers = ["Document ID", "Version", "Status", "Classification"]
         values = [doc_code, "1.0 (Approved)", "Executive Specification", "Confidential & Proprietary"]
         
@@ -84,10 +128,11 @@ class DocumentGenerator:
             cell = table.rows[0].cells[idx]
             cell.text = text
             _set_cell_background(cell, "0F766E")  # Deep Teal Emerald
-            _set_cell_margins(cell, top=80, bottom=80, left=100, right=100)
+            _set_cell_margins(cell, top=100, bottom=100, left=120, right=120)
+            _format_cell_paragraph(cell, space_before=2, space_after=2)
             p = cell.paragraphs[0]
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p.runs[0].font.name = "Arial"
+            p.runs[0].font.name  = "Arial"
             p.runs[0].font.size = Pt(8.5)
             p.runs[0].font.bold = True
             p.runs[0].font.color.rgb = RGBColor(255, 255, 255)
@@ -96,27 +141,32 @@ class DocumentGenerator:
             cell = table.rows[1].cells[idx]
             cell.text = text
             _set_cell_background(cell, "F0FDF4")  # Soft mint tint
-            _set_cell_margins(cell, top=80, bottom=80, left=100, right=100)
+            _set_cell_margins(cell, top=100, bottom=100, left=120, right=120)
+            _format_cell_paragraph(cell, space_before=2, space_after=2)
             p = cell.paragraphs[0]
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.runs[0].font.name = "Arial"
             p.runs[0].font.size = Pt(8.5)
             p.runs[0].font.color.rgb = RGBColor(30, 41, 59)
 
-        doc.add_paragraph().paragraph_format.space_after = Pt(12)
+        doc.add_paragraph().paragraph_format.space_after = Pt(10)
 
     def _add_green_callout_box(self, doc, title: str, text: str):
         """Adds a mint-greenish callout box for executive highlights & key metrics."""
         tbl = doc.add_table(rows=1, cols=1)
         tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_table_borders(tbl, color="10B981", sz="6")
+        _set_col_widths(tbl, [6.4])
+
         cell = tbl.rows[0].cells[0]
         _set_cell_background(cell, "ECFDF5")  # Mint green background
         _set_cell_margins(cell, top=140, bottom=140, left=180, right=180)
+        _format_cell_paragraph(cell, space_before=2, space_after=2)
+
         p = cell.paragraphs[0]
         p.paragraph_format.line_spacing = 1.2
-        p.paragraph_format.space_after = Pt(0)
         
-        r_head = p.add_run(f"❇️ {title}\n")
+        r_head = p.add_run(f"{title}\n")
         r_head.font.name = "Arial"
         r_head.font.size = Pt(10)
         r_head.font.bold = True
@@ -136,13 +186,18 @@ class DocumentGenerator:
             return
         tbl = doc.add_table(rows=1, cols=1)
         tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_table_borders(tbl, color="10B981", sz="6")
+        _set_col_widths(tbl, [6.4])
+
         cell = tbl.rows[0].cells[0]
         _set_cell_background(cell, "D1FAE5")  # Rich mint green background
         _set_cell_margins(cell, top=140, bottom=140, left=180, right=180)
+        _format_cell_paragraph(cell, space_before=2, space_after=2)
+
         p = cell.paragraphs[0]
         p.paragraph_format.line_spacing = 1.2
         
-        r_head = p.add_run("📊 Target Executive KPIs & Performance Metrics Benchmark\n")
+        r_head = p.add_run("Target Executive KPIs & Performance Metrics Benchmark\n")
         r_head.font.name = "Arial"
         r_head.font.size = Pt(10.5)
         r_head.font.bold = True
@@ -171,11 +226,16 @@ class DocumentGenerator:
         if benefits:
             tbl = doc.add_table(rows=1, cols=1)
             tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+            _set_table_borders(tbl, color="10B981", sz="6")
+            _set_col_widths(tbl, [6.4])
+
             cell = tbl.rows[0].cells[0]
             _set_cell_background(cell, "ECFDF5")
             _set_cell_margins(cell, top=140, bottom=140, left=180, right=180)
+            _format_cell_paragraph(cell, space_before=2, space_after=2)
+
             p = cell.paragraphs[0]
-            r_head = p.add_run("📈 Strategic & Financial ROI Benefits\n")
+            r_head = p.add_run("Strategic & Financial ROI Benefits\n")
             r_head.font.name = "Arial"
             r_head.font.size = Pt(10.5)
             r_head.font.bold = True
@@ -190,11 +250,16 @@ class DocumentGenerator:
         if risks:
             tbl_r = doc.add_table(rows=1, cols=1)
             tbl_r.alignment = WD_TABLE_ALIGNMENT.CENTER
+            _set_table_borders(tbl_r, color="F59E0B", sz="6")
+            _set_col_widths(tbl_r, [6.4])
+
             cell_r = tbl_r.rows[0].cells[0]
             _set_cell_background(cell_r, "FFFBEB")
             _set_cell_margins(cell_r, top=140, bottom=140, left=180, right=180)
+            _format_cell_paragraph(cell_r, space_before=2, space_after=2)
+
             p_r = cell_r.paragraphs[0]
-            r_head_r = p_r.add_run("🛡️ Risk Mitigation & Operational Controls\n")
+            r_head_r = p_r.add_run("Risk Mitigation & Operational Controls\n")
             r_head_r.font.name = "Arial"
             r_head_r.font.size = Pt(10.5)
             r_head_r.font.bold = True
@@ -216,13 +281,13 @@ class DocumentGenerator:
         run.font.name = "Arial"
         run.font.bold = True
         if level == 1:
-            run.font.size = Pt(14)
+            run.font.size = Pt(13.5)
             run.font.color.rgb = RGBColor(15, 118, 110)  # Deep Emerald
         elif level == 2:
-            run.font.size = Pt(11.5)
+            run.font.size = Pt(11.0)
             run.font.color.rgb = RGBColor(30, 41, 59)
         else:
-            run.font.size = Pt(10)
+            run.font.size = Pt(10.0)
             run.font.color.rgb = RGBColor(51, 65, 85)
         return p
 
@@ -230,20 +295,23 @@ class DocumentGenerator:
         """Generates visual Business Requirement Document (.docx) featuring embedded flowcharts, matrices, and minimal prose."""
         doc = Document()
         doc_code = brd_data.get("doc_id_code", f"BRD-2026-{session_id[:6].upper()}")
-        sol_name = context.get("solution_name") if context else brd_data.get("title", "Business Requirement Document")
+        sol_name = (context.get("solution_name") if context else None) or brd_data.get("title", "Business Requirement Document")
         
         self._add_styled_header(doc, f"Business Requirement Document - {sol_name}", "Digitalization Advisor - Visual Solution Architecture Specification", doc_code)
 
-        exec_sum = context.get("executive_summary") if context else brd_data.get("executive_summary", "")
+        exec_sum = (context.get("executive_summary") if context else None) or brd_data.get("executive_summary", "")
         if exec_sum:
             self._add_green_callout_box(doc, "Executive Strategic Rationale", exec_sum)
 
         # 1. Problem Statement & Operational Friction (Visual Summary)
         self._add_heading(doc, "1. Business Problem & Operational Friction", level=1)
-        prob_text = context.get("problem_statement") if context else brd_data.get("problem_statement", "")
+        prob_text = (context.get("problem_statement") if context else None) or brd_data.get("problem_statement", "")
         
         tbl_prob = doc.add_table(rows=1, cols=2)
         tbl_prob.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_table_borders(tbl_prob, color="CBD5E1", sz="4")
+        _set_col_widths(tbl_prob, [3.2, 3.2])
+
         c_left, c_right = tbl_prob.rows[0].cells
         c_left.text = "Operational Friction Point"
         c_right.text = "Target Solution Rationale"
@@ -251,6 +319,9 @@ class DocumentGenerator:
         _set_cell_background(c_right, "0F766E")
         _set_cell_margins(c_left, top=100, bottom=100, left=120, right=120)
         _set_cell_margins(c_right, top=100, bottom=100, left=120, right=120)
+        _format_cell_paragraph(c_left, space_before=2, space_after=2)
+        _format_cell_paragraph(c_right, space_before=2, space_after=2)
+
         c_left.paragraphs[0].runs[0].font.bold = True
         c_left.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
         c_right.paragraphs[0].runs[0].font.bold = True
@@ -262,11 +333,12 @@ class DocumentGenerator:
         for c in row_p:
             _set_cell_background(c, "F0FDF4")
             _set_cell_margins(c, top=100, bottom=100, left=120, right=120)
-            c.paragraphs[0].runs[0].font.size = Pt(9.0)
+            _format_cell_paragraph(c, space_before=2, space_after=2)
+            c.paragraphs[0].runs[0].font.size = Pt(8.8)
 
         # 2. Flowchart: Solution Workflow Execution
         self._add_heading(doc, "2. End-to-End Solution Workflow Architecture", level=1)
-        workflow_steps = context.get("workflow_steps", []) if context else brd_data.get("workflow_steps", [])
+        workflow_steps = (context.get("workflow_steps") if context else None) or brd_data.get("workflow_steps", [])
         
         # Generate and embed high-resolution Process Flowchart diagram PNG
         flowchart_img = generate_process_flowchart(session_id, sol_name, workflow_steps)
@@ -276,6 +348,9 @@ class DocumentGenerator:
         if workflow_steps:
             table_wf = doc.add_table(rows=1, cols=3)
             table_wf.alignment = WD_TABLE_ALIGNMENT.CENTER
+            _set_table_borders(table_wf, color="CBD5E1", sz="4")
+            _set_col_widths(table_wf, [0.9, 1.8, 3.7])
+
             hdr_wf = table_wf.rows[0].cells
             hdr_wf[0].text = "Step #"
             hdr_wf[1].text = "Workflow Stage"
@@ -283,17 +358,19 @@ class DocumentGenerator:
             for c in hdr_wf:
                 _set_cell_background(c, "0F766E")
                 _set_cell_margins(c, top=100, bottom=100, left=120, right=120)
+                _format_cell_paragraph(c, space_before=2, space_after=2)
                 c.paragraphs[0].runs[0].font.bold = True
                 c.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
 
             for idx, step in enumerate(workflow_steps):
                 row_wf = table_wf.add_row().cells
-                row_wf[0].text = step.get("step", f"Step {idx+1}")
-                row_wf[1].text = step.get("title", f"Stage {idx+1}")
-                row_wf[2].text = step.get("description", "")
+                row_wf[0].text = f"STEP 0{idx+1}"
+                row_wf[1].text = re.sub(r'^\[?Step\s*\d+\]?\s*:?\s*', '', str(step.get("title", f"Stage {idx+1}")), flags=re.IGNORECASE).strip()
+                row_wf[2].text = str(step.get("description", ""))
                 for c in row_wf:
                     _set_cell_background(c, "F0FDF4" if idx % 2 == 0 else "FFFFFF")
                     _set_cell_margins(c, top=80, bottom=80, left=100, right=100)
+                    _format_cell_paragraph(c, space_before=2, space_after=2)
                     c.paragraphs[0].runs[0].font.size = Pt(8.5)
 
         # 3. Flowchart: Current vs Target State Comparison
@@ -309,12 +386,16 @@ class DocumentGenerator:
 
         tbl_st = doc.add_table(rows=1, cols=2)
         tbl_st.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_table_borders(tbl_st, color="CBD5E1", sz="4")
+        _set_col_widths(tbl_st, [3.2, 3.2])
+
         hdr_st = tbl_st.rows[0].cells
-        hdr_st[0].text = "❌ Current State (As-Is)"
-        hdr_st[1].text = f"✅ Target State ({sol_name})"
+        hdr_st[0].text = "Current State (As-Is)"
+        hdr_st[1].text = f"Target State ({sol_name})"
         for c in hdr_st:
             _set_cell_background(c, "0F766E")
             _set_cell_margins(c, top=100, bottom=100, left=120, right=120)
+            _format_cell_paragraph(c, space_before=2, space_after=2)
             c.paragraphs[0].runs[0].font.bold = True
             c.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
         
@@ -324,7 +405,8 @@ class DocumentGenerator:
         for c in row_st:
             _set_cell_background(c, "F0FDF4")
             _set_cell_margins(c, top=100, bottom=100, left=120, right=120)
-            c.paragraphs[0].runs[0].font.size = Pt(9.0)
+            _format_cell_paragraph(c, space_before=2, space_after=2)
+            c.paragraphs[0].runs[0].font.size = Pt(8.8)
 
         # 4. Key Business Benefits & Projected ROI
         self._add_benefits_roi_box(doc, None, context)
@@ -333,6 +415,9 @@ class DocumentGenerator:
         self._add_heading(doc, "5. Solution Scope Boundaries", level=1)
         tbl_scope = doc.add_table(rows=1, cols=2)
         tbl_scope.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_table_borders(tbl_scope, color="CBD5E1", sz="4")
+        _set_col_widths(tbl_scope, [3.2, 3.2])
+
         c_in, c_out = tbl_scope.rows[0].cells
         c_in.text = "In-Scope Capabilities"
         c_out.text = "Out-of-Scope Items"
@@ -340,6 +425,8 @@ class DocumentGenerator:
         _set_cell_background(c_out, "0F766E")
         _set_cell_margins(c_in, top=100, bottom=100, left=120, right=120)
         _set_cell_margins(c_out, top=100, bottom=100, left=120, right=120)
+        _format_cell_paragraph(c_in, space_before=2, space_after=2)
+        _format_cell_paragraph(c_out, space_before=2, space_after=2)
         c_in.paragraphs[0].runs[0].font.bold = True
         c_in.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
         c_out.paragraphs[0].runs[0].font.bold = True
@@ -351,12 +438,16 @@ class DocumentGenerator:
         for c in row_sc:
             _set_cell_background(c, "F0FDF4")
             _set_cell_margins(c, top=100, bottom=100, left=120, right=120)
+            _format_cell_paragraph(c, space_before=2, space_after=2)
             c.paragraphs[0].runs[0].font.size = Pt(8.5)
 
         # 6. Stakeholder Governance Matrix
         self._add_heading(doc, "6. Stakeholder Governance Matrix", level=1)
         table_g = doc.add_table(rows=1, cols=3)
         table_g.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_table_borders(table_g, color="CBD5E1", sz="4")
+        _set_col_widths(table_g, [1.8, 3.0, 1.6])
+
         hdr_g = table_g.rows[0].cells
         hdr_g[0].text = "Stakeholder Role"
         hdr_g[1].text = "Key Responsibilities"
@@ -364,6 +455,7 @@ class DocumentGenerator:
         for c in hdr_g:
             _set_cell_background(c, "0F766E")
             _set_cell_margins(c, top=100, bottom=100, left=120, right=120)
+            _format_cell_paragraph(c, space_before=2, space_after=2)
             c.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
             c.paragraphs[0].runs[0].font.bold = True
 
@@ -376,6 +468,7 @@ class DocumentGenerator:
             for c in row_g:
                 _set_cell_background(c, "F0FDF4" if idx % 2 == 0 else "FFFFFF")
                 _set_cell_margins(c, top=80, bottom=80, left=100, right=100)
+                _format_cell_paragraph(c, space_before=2, space_after=2)
                 c.paragraphs[0].runs[0].font.size = Pt(8.5)
 
         file_name = f"BRD_{session_id[:8]}.docx"
@@ -408,6 +501,9 @@ class DocumentGenerator:
         if tech_list:
             tbl_t = doc.add_table(rows=1, cols=3)
             tbl_t.alignment = WD_TABLE_ALIGNMENT.CENTER
+            _set_table_borders(tbl_t, color="CBD5E1", sz="4")
+            _set_col_widths(tbl_t, [2.0, 2.0, 2.4])
+
             hdr_t = tbl_t.rows[0].cells
             hdr_t[0].text = "Technology Component"
             hdr_t[1].text = "Architecture Layer"
@@ -415,6 +511,7 @@ class DocumentGenerator:
             for c in hdr_t:
                 _set_cell_background(c, "0F766E")
                 _set_cell_margins(c, top=100, bottom=100, left=120, right=120)
+                _format_cell_paragraph(c, space_before=2, space_after=2)
                 c.paragraphs[0].runs[0].font.bold = True
                 c.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
 
@@ -426,6 +523,7 @@ class DocumentGenerator:
                 for c in row_t:
                     _set_cell_background(c, "F0FDF4" if idx % 2 == 0 else "FFFFFF")
                     _set_cell_margins(c, top=80, bottom=80, left=100, right=100)
+                    _format_cell_paragraph(c, space_before=2, space_after=2)
                     c.paragraphs[0].runs[0].font.size = Pt(8.5)
 
         # 2. Solution Execution Flowchart
@@ -439,6 +537,9 @@ class DocumentGenerator:
         self._add_heading(doc, "3. System Functional Requirements Matrix", level=1)
         table = doc.add_table(rows=1, cols=3)
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_table_borders(table, color="CBD5E1", sz="4")
+        _set_col_widths(table, [1.8, 1.4, 3.2])
+
         hdr_cells = table.rows[0].cells
         hdr_cells[0].text = "Module Name"
         hdr_cells[1].text = "Priority"
@@ -446,6 +547,7 @@ class DocumentGenerator:
         for c in hdr_cells:
             _set_cell_background(c, "0F766E")
             _set_cell_margins(c, top=100, bottom=100, left=120, right=120)
+            _format_cell_paragraph(c, space_before=2, space_after=2)
             c.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
             c.paragraphs[0].runs[0].font.bold = True
 
@@ -458,6 +560,7 @@ class DocumentGenerator:
             for c in row_cells:
                 _set_cell_background(c, "F0FDF4" if idx % 2 == 0 else "FFFFFF")
                 _set_cell_margins(c, top=80, bottom=80, left=100, right=100)
+                _format_cell_paragraph(c, space_before=2, space_after=2)
                 c.paragraphs[0].runs[0].font.size = Pt(8.5)
 
         # 4. Technical & Non-Functional Specifications
@@ -466,12 +569,16 @@ class DocumentGenerator:
         if nfrs:
             tbl_nfr = doc.add_table(rows=1, cols=2)
             tbl_nfr.alignment = WD_TABLE_ALIGNMENT.CENTER
+            _set_table_borders(tbl_nfr, color="CBD5E1", sz="4")
+            _set_col_widths(tbl_nfr, [2.0, 4.4])
+
             hdr_nfr = tbl_nfr.rows[0].cells
             hdr_nfr[0].text = "Specification Domain"
             hdr_nfr[1].text = "Technical Benchmark Requirement"
             for c in hdr_nfr:
                 _set_cell_background(c, "0F766E")
                 _set_cell_margins(c, top=100, bottom=100, left=120, right=120)
+                _format_cell_paragraph(c, space_before=2, space_after=2)
                 c.paragraphs[0].runs[0].font.bold = True
                 c.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
 
@@ -482,6 +589,7 @@ class DocumentGenerator:
                 for c in row_nfr:
                     _set_cell_background(c, "F0FDF4" if idx % 2 == 0 else "FFFFFF")
                     _set_cell_margins(c, top=80, bottom=80, left=100, right=100)
+                    _format_cell_paragraph(c, space_before=2, space_after=2)
                     c.paragraphs[0].runs[0].font.size = Pt(8.5)
 
         # 5. Success Criteria & Target KPIs
@@ -493,12 +601,16 @@ class DocumentGenerator:
         if risks_list:
             table_r = doc.add_table(rows=1, cols=2)
             table_r.alignment = WD_TABLE_ALIGNMENT.CENTER
+            _set_table_borders(table_r, color="CBD5E1", sz="4")
+            _set_col_widths(table_r, [3.2, 3.2])
+
             hdr_r = table_r.rows[0].cells
             hdr_r[0].text = "Identified Operational Risk"
             hdr_r[1].text = "Target Mitigation Protocol"
             for c in hdr_r:
                 _set_cell_background(c, "0F766E")
                 _set_cell_margins(c, top=100, bottom=100, left=120, right=120)
+                _format_cell_paragraph(c, space_before=2, space_after=2)
                 c.paragraphs[0].runs[0].font.bold = True
                 c.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
 
@@ -511,6 +623,7 @@ class DocumentGenerator:
                 for c in row_r:
                     _set_cell_background(c, "F0FDF4" if idx % 2 == 0 else "FFFFFF")
                     _set_cell_margins(c, top=80, bottom=80, left=100, right=100)
+                    _format_cell_paragraph(c, space_before=2, space_after=2)
                     c.paragraphs[0].runs[0].font.size = Pt(8.5)
 
         file_name = f"PRD_{session_id[:8]}.docx"
@@ -523,11 +636,11 @@ class DocumentGenerator:
         """Generates visual Implementation Plan (.docx) with roadmap charts and visual timelines."""
         doc = Document()
         doc_code = plan_data.get("doc_id_code", f"PLAN-2026-{session_id[:6].upper()}")
-        sol_name = context.get("solution_name") if context else plan_data.get("title", "Implementation Plan")
+        sol_name = (context.get("solution_name") if context else None) or plan_data.get("title", "Implementation Plan")
 
         self._add_styled_header(doc, f"Implementation Plan - {sol_name}", "Digitalization Advisor - Phased Execution Roadmap & Governance", doc_code)
 
-        charter = context.get("project_charter") if context else plan_data.get("project_charter", f"Execution roadmap for {sol_name}.")
+        charter = (context.get("project_charter") if context else None) or plan_data.get("project_charter", f"Execution roadmap for {sol_name}.")
         if charter:
             self._add_green_callout_box(doc, "Project Execution Charter & Governance", charter)
 
@@ -542,6 +655,9 @@ class DocumentGenerator:
 
         table = doc.add_table(rows=1, cols=3)
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_table_borders(table, color="CBD5E1", sz="4")
+        _set_col_widths(table, [1.8, 2.3, 2.3])
+
         hdr_cells = table.rows[0].cells
         hdr_cells[0].text = "Phase & Duration"
         hdr_cells[1].text = f"Implementation Tasks ({sol_name})"
@@ -549,6 +665,7 @@ class DocumentGenerator:
         for c in hdr_cells:
             _set_cell_background(c, "0F766E")
             _set_cell_margins(c, top=100, bottom=100, left=120, right=120)
+            _format_cell_paragraph(c, space_before=2, space_after=2)
             c.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
             c.paragraphs[0].runs[0].font.bold = True
 
@@ -560,6 +677,7 @@ class DocumentGenerator:
             for c in row_cells:
                 _set_cell_background(c, "F0FDF4" if idx % 2 == 0 else "FFFFFF")
                 _set_cell_margins(c, top=80, bottom=80, left=100, right=100)
+                _format_cell_paragraph(c, space_before=2, space_after=2)
                 c.paragraphs[0].runs[0].font.size = Pt(8.5)
 
         # 2. System Architecture Reference Diagram
@@ -576,6 +694,9 @@ class DocumentGenerator:
         resources = plan_data.get("resource_allocation", ["Lead Solution Architect", "Full-Stack Developer", "Domain Subject Matter Expert"])
         tbl_raci = doc.add_table(rows=1, cols=3)
         tbl_raci.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_table_borders(tbl_raci, color="CBD5E1", sz="4")
+        _set_col_widths(tbl_raci, [2.0, 2.6, 1.8])
+
         hdr_raci = tbl_raci.rows[0].cells
         hdr_raci[0].text = "Project Role"
         hdr_raci[1].text = "Core Execution Scope"
@@ -583,6 +704,7 @@ class DocumentGenerator:
         for c in hdr_raci:
             _set_cell_background(c, "0F766E")
             _set_cell_margins(c, top=100, bottom=100, left=120, right=120)
+            _format_cell_paragraph(c, space_before=2, space_after=2)
             c.paragraphs[0].runs[0].font.bold = True
             c.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
 
@@ -594,6 +716,7 @@ class DocumentGenerator:
             for c in row_r:
                 _set_cell_background(c, "F0FDF4" if idx % 2 == 0 else "FFFFFF")
                 _set_cell_margins(c, top=80, bottom=80, left=100, right=100)
+                _format_cell_paragraph(c, space_before=2, space_after=2)
                 c.paragraphs[0].runs[0].font.size = Pt(8.5)
 
         file_name = f"Implementation_Plan_{session_id[:8]}.docx"
@@ -603,4 +726,3 @@ class DocumentGenerator:
         return file_path
 
 doc_generator = DocumentGenerator()
-

@@ -240,13 +240,9 @@ export default function HistoryDrawer({ isOpen, onClose, onSelectHistoryItem, on
                   e.currentTarget.style.boxShadow = 'none';
                 }}
                 onClick={() => {
-                  if (item.fullState) {
-                    onSelectHistoryItem(item.fullState);
-                    onClose();
-                  } else {
-                    onReuseQuestion(item.question);
-                    onClose();
-                  }
+                  onSelectHistoryItem(item);
+                  onClose();
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -272,31 +268,29 @@ export default function HistoryDrawer({ isOpen, onClose, onSelectHistoryItem, on
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    {item.fullState ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectHistoryItem(item.fullState);
-                          onClose();
-                        }}
-                        style={{
-                          background: 'rgba(73, 220, 177, 0.12)',
-                          border: '1px solid rgba(73, 220, 177, 0.3)',
-                          color: '#49dcb1',
-                          padding: '5px 12px',
-                          borderRadius: '8px',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}
-                      >
-                        <RotateCcw size={12} /> Restore Session
-                      </button>
-                    ) : null}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectHistoryItem(item);
+                        onClose();
+                      }}
+                      style={{
+                        background: 'rgba(73, 220, 177, 0.12)',
+                        border: '1px solid rgba(73, 220, 177, 0.3)',
+                        color: '#49dcb1',
+                        padding: '5px 12px',
+                        borderRadius: '8px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <RotateCcw size={12} /> Restore Session
+                    </button>
 
                     <button
                       type="button"

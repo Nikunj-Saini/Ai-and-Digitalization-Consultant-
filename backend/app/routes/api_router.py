@@ -1,5 +1,6 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.db import get_db
@@ -8,13 +9,21 @@ from app.models.pydantic_models import (
     SubmitProblemRequest, SubmitProblemResponse,
     ClarifyAnswerRequest, ClarifyResponse,
     GenerateSolutionsRequest, SolutionsResponse,
+    ValidateTechStackRequest, ValidateTechStackResponse,
     SelectSolutionRequest, SelectSolutionResponse,
     GenerateDocumentsRequest, GenerateDocumentsResponse,
     SessionStatusResponse
 )
 from app.services.state_machine import state_machine_engine
+from app.services.tech_stack_validator import validate_tech_stack
 
 router = APIRouter()
+
+@router.get("/suggested-tools", response_model=List[str])
+def get_suggested_tools():
+    """Return full list of known enterprise tech stack tools for UI suggestions."""
+    from app.services.tech_stack_validator import KNOWN_TECH_STACK_SET
+    return list(KNOWN_TECH_STACK_SET)
 
 @router.post("/submit-problem", response_model=SubmitProblemResponse, status_code=status.HTTP_201_CREATED)
 async def submit_problem(payload: SubmitProblemRequest, db: Session = Depends(get_db)):
@@ -41,15 +50,28 @@ async def answer_clarification(payload: ClarifyAnswerRequest, db: Session = Depe
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
+@router.post("/validate-tech-stack", response_model=ValidateTechStackResponse)
+def validate_user_tech_stack(payload: ValidateTechStackRequest):
+    """
+    Validates user submitted enterprise tech stack tools.
+    """
+    is_val, invalid_items, msg = validate_tech_stack(payload.tech_stack)
+    return ValidateTechStackResponse(
+        is_valid=is_val,
+        invalid_tools=invalid_items,
+        message=msg
+    )
+
+
 @router.post("/generate-solutions", response_model=SolutionsResponse)
 async def generate_solutions(payload: GenerateSolutionsRequest, db: Session = Depends(get_db)):
     """
-    Stage 4: Invokes Solution Generation Agent to return a minimum of 3 structured solutions.
+    Stage 4: Invokes Solution Generation Agent to return a minimum of 3 structured solutions tailored around user's validated tech stack.
     """
     try:
-        return await state_machine_engine.generate_solutions(payload.session_id, db)
+        return await state_machine_engine.generate_solutions(payload.session_id, db, tech_stack=payload.tech_stack)
     except ValueError as ve:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(ve))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

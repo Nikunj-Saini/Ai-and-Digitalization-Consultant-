@@ -2,6 +2,7 @@ import uuid
 import json
 import logging
 from datetime import datetime
+from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from app.models.db_models import (
     SessionModel,
@@ -15,6 +16,7 @@ from app.services.ai_service import ai_service
 from app.services.claude_service import claude_service
 from app.services.doc_generator import doc_generator
 from app.services.solution_validator import validate_solution_context_semantics
+from app.services.tech_stack_validator import validate_tech_stack
 from app.models.pydantic_models import (
     SubmitProblemResponse,
     ClarifyResponse,
@@ -49,6 +51,9 @@ class StateMachineEngine:
         
         # Stage 2: Understanding Agent Clarity Check via Gemini AI
         clarity_res = await claude_service.check_problem_clarity(problem_statement)
+        
+        # Dynamically recommend tech stack tailored to this problem
+        suggested_stack, rec_categories = await ai_service.recommend_tech_stack_for_problem(problem_statement)
 
         if clarity_res.is_clear:
             session_rec.status = "SOLUTIONS_READY"
@@ -63,7 +68,9 @@ class StateMachineEngine:
                 clarification_round=0,
                 question=None,
                 missing_info=[],
-                message="Problem statement is clear! Ready to generate solution options."
+                message="Problem statement is clear! Ready to generate solution options.",
+                suggested_tech_stack=suggested_stack,
+                recommended_categories=rec_categories
             )
         else:
             session_rec.status = "CLARIFICATION"
@@ -87,7 +94,9 @@ class StateMachineEngine:
                 clarification_round=1,
                 question=clar_rec.question,
                 missing_info=clarity_res.missing_info,
-                message="We need a bit more clarity to give you the best solutions."
+                message="We need a bit more clarity to give you the best solutions.",
+                suggested_tech_stack=suggested_stack,
+                recommended_categories=rec_categories
             )
 
     async def answer_clarification(self, session_id: str, answer: str, db: Session) -> ClarifyResponse:
@@ -119,6 +128,10 @@ class StateMachineEngine:
         all_qa = db.query(ClarificationModel).filter(ClarificationModel.session_id == session_id).all()
         qa_history = [{"round": q.round, "question": q.question, "answer": q.answer or ""} for q in all_qa]
 
+        # Dynamically recommend tech stack tailored to problem + clarified history
+        full_problem_context = raw_problem + " " + " ".join([f"{q['question']} {q['answer']}" for q in qa_history])
+        suggested_stack, rec_categories = await ai_service.recommend_tech_stack_for_problem(full_problem_context)
+
         # Check if max rounds (2) reached
         if current_round >= 2:
             session_rec.status = "SOLUTIONS_READY"
@@ -134,7 +147,9 @@ class StateMachineEngine:
                 clarification_round=current_round,
                 question=None,
                 missing_info=[],
-                message="Clarification limit reached (2 rounds). Proceeding to solution generation!"
+                message="Clarification limit reached (2 rounds). Proceeding to solution generation!",
+                suggested_tech_stack=suggested_stack,
+                recommended_categories=rec_categories
             )
 
         # Check clarity with updated answers
@@ -154,7 +169,9 @@ class StateMachineEngine:
                 clarification_round=current_round,
                 question=None,
                 missing_info=[],
-                message="Thank you! The requirements are now clear. Ready to generate solution options."
+                message="Thank you! The requirements are now clear. Ready to generate solution options.",
+                suggested_tech_stack=suggested_stack,
+                recommended_categories=rec_categories
             )
         else:
             next_round = current_round + 1
@@ -171,13 +188,29 @@ class StateMachineEngine:
                 clarification_round=next_round,
                 question=next_question,
                 missing_info=clarity_res.missing_info,
-                message="Additional clarification requested."
+                message="Additional clarification requested.",
+                suggested_tech_stack=suggested_stack,
+                recommended_categories=rec_categories
             )
 
-    async def generate_solutions(self, session_id: str, db: Session) -> SolutionsResponse:
+    async def generate_solutions(self, session_id: str, db: Session, tech_stack: Optional[list] = None) -> SolutionsResponse:
         session_rec = db.query(SessionModel).filter(SessionModel.id == session_id).first()
         if not session_rec:
             raise ValueError("Session not found")
+
+        prob_rec = db.query(ProblemStatementModel).filter(ProblemStatementModel.session_id == session_id).first()
+        raw_problem = prob_rec.raw_text if prob_rec else ""
+
+        # If not provided, check if problem context requires a library tech stack
+        if not tech_stack or not isinstance(tech_stack, list) or len(tech_stack) == 0:
+            suggested_stack, rec_categories = await ai_service.recommend_tech_stack_for_problem(raw_problem)
+            if (suggested_stack and len(suggested_stack) > 0) or (rec_categories and len(rec_categories) > 0):
+                raise ValueError("Please select at least one technology/tool from the Library to generate a solution.")
+            tech_stack = []
+        else:
+            is_val, invalid_items, msg = validate_tech_stack(tech_stack)
+            if not is_val:
+                raise ValueError(f"Invalid tech stack provided: {msg}")
 
         prob_rec = db.query(ProblemStatementModel).filter(ProblemStatementModel.session_id == session_id).first()
         raw_problem = prob_rec.raw_text if prob_rec else ""
@@ -185,8 +218,8 @@ class StateMachineEngine:
         all_qa = db.query(ClarificationModel).filter(ClarificationModel.session_id == session_id).all()
         qa_history = [{"round": q.round, "question": q.question, "answer": q.answer or ""} for q in all_qa if q.answer]
 
-        # Call Gemini AI via solution pipeline with Relevance Gate
-        analysis, solutions = await ai_service.generate_solutions_with_relevance_gate(raw_problem, qa_history)
+        # Call Gemini AI via solution pipeline with Relevance Gate and confirmed tech stack
+        analysis, solutions = await ai_service.generate_solutions_with_relevance_gate(raw_problem, qa_history, tech_stack=tech_stack)
 
         # Clear existing solution records for this session if re-generating
         db.query(SolutionModel).filter(SolutionModel.session_id == session_id).delete()
@@ -324,32 +357,32 @@ class StateMachineEngine:
             DocumentItemInfo(
                 doc_id=doc_brd_rec.id,
                 type="brd",
-                title=brd_c.get("title", f"Business Requirement Document - {sol_item.title}"),
+                title=f"Business Requirement Document (BRD)",
                 download_url=f"/api/download/{doc_brd_rec.id}",
-                description=brd_c.get("description", f"Executive strategic document for {sol_item.title}."),
+                description="Strategic business rationale, operational scope boundaries, and stakeholder approval governance.",
                 key_highlights=[
-                    f"Executive Rationale ({sol_item.title})",
-                    f"Solution Type: {validated_context.get('solution_type', 'Automation Engine')}",
-                    f"In-Scope Timeline: {sol_item.effort}",
+                    "Executive Summary & Business Rationale",
+                    f"Solution Architecture: {validated_context.get('solution_type', 'Automation Engine')}",
+                    f"Target Timeline: {sol_item.effort}",
                     "Stakeholder Governance Matrix"
                 ],
                 sections=workflow_preview if workflow_preview else [
-                    {"name": f"1. Executive Rationale ({sol_item.title[:25]})", "content": brd_c.get("executive_summary", "")},
-                    {"name": "2. Expected Benefits", "content": "; ".join(validated_context.get("expected_benefits", []))},
-                    {"name": "3. Scope Boundaries", "content": f"In-Scope: {'; '.join(brd_c.get('scope_in', [])[:2])}"}
+                    {"name": "1. Executive Strategic Rationale", "content": brd_c.get("executive_summary", "")},
+                    {"name": "2. Expected Business Benefits", "content": "; ".join(validated_context.get("expected_benefits", []))},
+                    {"name": "3. Scope Boundaries & Governance", "content": f"In-Scope: {'; '.join(brd_c.get('scope_in', [])[:2])}"}
                 ]
             ),
             DocumentItemInfo(
                 doc_id=doc_prd_rec.id,
                 type="prd",
-                title=prd_c.get("title", f"Project Requirement Document - {sol_item.title}"),
+                title=f"Product Requirement Document (PRD)",
                 download_url=f"/api/download/{doc_prd_rec.id}",
-                description=prd_c.get("description", f"Technical product specification for {sol_item.title}."),
+                description="Technical product specification mapping system architecture, microservices, and enterprise security SLAs.",
                 key_highlights=[
-                    f"Product Vision & Architecture ({sol_item.title})",
+                    "Product Vision & Modular Architecture",
                     f"Tech Stack: {', '.join(validated_context.get('technologies', [])[:3])}",
-                    f"Success Criteria ({len(validated_context.get('success_criteria', []))} metrics)",
-                    "Non-Functional SLA Specs"
+                    f"Success Criteria ({len(validated_context.get('success_criteria', []))} key metrics)",
+                    "Non-Functional SLA & Security Specs"
                 ],
                 sections=[
                     {"name": "1. System Functional Modules", "content": "; ".join([f"{f.get('module')}: {f.get('description')}" for f in validated_context.get("functional_requirements", [])[:3]])},
@@ -360,14 +393,14 @@ class StateMachineEngine:
             DocumentItemInfo(
                 doc_id=doc_plan_rec.id,
                 type="plan",
-                title=plan_c.get("title", f"Implementation Plan - {sol_item.title}"),
+                title=f"Implementation & Delivery Plan",
                 download_url=f"/api/download/{doc_plan_rec.id}",
-                description=plan_c.get("description", f"Execution roadmap for {sol_item.title}."),
+                description="Tactical execution roadmap outlining 4 phased delivery milestones, team RACI matrix, and risk controls.",
                 key_highlights=[
-                    f"{sol_item.effort} Phased Development Roadmap",
-                    f"Phased Deliverables ({len(validated_context.get('implementation_phases', []))} Phases)",
-                    f"RACI Resource Allocation ({sol_item.cost_tier})",
-                    "Governance Protocol"
+                    f"Phased Roadmap ({sol_item.effort})",
+                    f"Key Phased Deliverables ({len(validated_context.get('implementation_phases', []))} Phases)",
+                    f"Resource & RACI Allocation ({sol_item.cost_tier})",
+                    "Emergency Risk Mitigation Protocol"
                 ],
                 sections=[
                     {"name": f"Phase {idx+1}: {p.get('phase', f'Phase {idx+1}')}", "content": f"Tasks: {p.get('tasks', '')} | Deliverable: {p.get('deliverables', '')}"}

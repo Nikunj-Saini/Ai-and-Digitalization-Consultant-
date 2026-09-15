@@ -105,6 +105,17 @@ class ClarifyAnswerRequest(BaseModel):
 
 class GenerateSolutionsRequest(BaseModel):
     session_id: str
+    tech_stack: Optional[List[str]] = Field(default=None, description="User confirmed tech stack tools e.g. ['Python', 'AWS Textract', 'PostgreSQL']")
+
+
+class ValidateTechStackRequest(BaseModel):
+    tech_stack: List[str] = Field(..., description="List of technology tool names to validate")
+
+
+class ValidateTechStackResponse(BaseModel):
+    is_valid: bool
+    invalid_tools: List[str] = []
+    message: str
 
 
 class SelectSolutionRequest(BaseModel):
@@ -126,6 +137,8 @@ class SubmitProblemResponse(BaseModel):
     question: Optional[str] = None
     missing_info: List[str] = []
     message: str
+    suggested_tech_stack: List[str] = Field(default_factory=list, description="AI recommended tech stack for this specific problem")
+    recommended_categories: Dict[str, List[str]] = Field(default_factory=dict, description="Categorized tool suggestions relevant to problem")
 
 
 class ClarifyResponse(BaseModel):
@@ -136,6 +149,8 @@ class ClarifyResponse(BaseModel):
     question: Optional[str] = None
     missing_info: List[str] = []
     message: str
+    suggested_tech_stack: List[str] = Field(default_factory=list, description="AI recommended tech stack for this specific problem")
+    recommended_categories: Dict[str, List[str]] = Field(default_factory=dict, description="Categorized tool suggestions relevant to problem")
 
 
 class SolutionsResponse(BaseModel):

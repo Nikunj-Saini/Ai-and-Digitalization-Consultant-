@@ -26,11 +26,28 @@ export async function submitClarification(sessionId, answer) {
   return response.json();
 }
 
-export async function generateSolutions(sessionId) {
+export async function validateTechStack(techStack) {
+  const response = await fetch(`${API_BASE_URL}/validate-tech-stack`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tech_stack: techStack }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to validate tech stack');
+  }
+  return response.json();
+}
+
+export async function generateSolutions(sessionId, techStack = null) {
+  const payload = { session_id: sessionId };
+  if (techStack && Array.isArray(techStack) && techStack.length > 0) {
+    payload.tech_stack = techStack;
+  }
   const response = await fetch(`${API_BASE_URL}/generate-solutions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId }),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
@@ -70,6 +87,15 @@ export async function getSessionStatus(sessionId) {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.detail || 'Failed to fetch session status');
+  }
+  return response.json();
+}
+
+export async function getSuggestedTools() {
+  const response = await fetch(`${API_BASE_URL}/suggested-tools`);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to fetch suggested tools');
   }
   return response.json();
 }
