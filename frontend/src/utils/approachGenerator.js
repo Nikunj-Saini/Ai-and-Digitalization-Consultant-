@@ -21,7 +21,7 @@ export function categorizeTools(activeTools = []) {
     if (
       lower.includes('prophet') || lower.includes('xgboost') || lower.includes('scikit') ||
       lower.includes('statsmodels') || lower.includes('torch') || lower.includes('tensorflow') ||
-      lower.includes('pandas') || lower.includes('numpy')
+      lower.includes('pandas') || lower.includes('numpy') || lower.includes('langchain') || lower.includes('llamaindex')
     ) {
       categories.processing.push(t);
     } else if (
@@ -43,16 +43,16 @@ export function categorizeTools(activeTools = []) {
       lower.includes('postgresql') || lower.includes('postgres') || lower.includes('snowflake') ||
       lower.includes('bigquery') || lower.includes('redshift') || lower.includes('duckdb') ||
       lower.includes('sql') || lower.includes('mysql') || lower.includes('mongodb') ||
-      lower.includes('redis') || lower.includes('dynamodb')
+      lower.includes('redis') || lower.includes('dynamodb') || lower.includes('qdrant')
     ) {
       categories.database.push(t);
     } else if (
       lower.includes('sap') || lower.includes('tally') || lower.includes('salesforce') ||
       lower.includes('api') || lower.includes('rest') || lower.includes('fastapi') ||
-      lower.includes('express') || lower.includes('node') || lower.includes('graphql')
+      lower.includes('express') || lower.includes('node') || lower.includes('graphql') || lower.includes('openai')
     ) {
       categories.integration.push(t);
-    } else if (lower.includes('python') || lower.includes('typescript') || lower.includes('javascript') || lower.includes('java')) {
+    } else if (lower.includes('python') || lower.includes('typescript') || lower.includes('javascript') || lower.includes('java') || lower.includes('c#') || lower.includes('.net') || lower.includes('react') || lower.includes('next')) {
       categories.processing.push(t);
     } else {
       categories.other.push(t);
@@ -167,9 +167,13 @@ export function getDynamicFlowchartSteps(sol, activeTools = [], index = 0) {
   }
 
   // General / Document / Workflow Automation Flow
-  const mainIngest = categories.ingestion.length > 0 ? categories.ingestion[0] : (categories.database[0] || tools[0] || 'Data Intake');
-  const mainAuto = (categories.processing.length > 0 ? categories.processing[0] : (categories.automation[0] || tools[1] || tools[0] || 'Core Engine'));
-  const mainInt = categories.integration.length > 0 ? categories.integration.join(', ') : (categories.analytics[0] || categories.database[1] || tools[tools.length - 1] || 'Target System');
+  const ingestionCandidates = [...categories.ingestion, ...categories.database];
+  const processingCandidates = [...categories.processing, ...categories.automation];
+  const integrationCandidates = [...categories.integration, ...categories.analytics, ...categories.other];
+
+  const mainIngest = ingestionCandidates[0] || tools[0] || 'Data Intake';
+  const mainAuto = processingCandidates.find(t => t !== mainIngest) || tools[1] || tools[0] || 'Core Engine';
+  const mainInt = integrationCandidates.find(t => t !== mainIngest && t !== mainAuto) || tools[tools.length - 1] || 'Target System';
 
   if (isOption1) {
     steps.push({

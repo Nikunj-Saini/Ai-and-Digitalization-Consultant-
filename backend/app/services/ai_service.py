@@ -66,6 +66,9 @@ def _looks_like_forecasting_solution(solution: "SolutionItem") -> bool:
         "forecast", "predict", "time-series", "timeseries", "prophet", "xgboost",
         "capacity planning", "staffing", "demand", "mape", "seasonality",
     )
+    return any(m in blob for m in markers)
+
+
 def _get_heuristic_tech_stack(problem_text: str) -> tuple[List[str], Dict[str, List[str]]]:
     lowered = (problem_text or "").lower()
 
@@ -253,7 +256,7 @@ class AIService:
         if not self.groq_client:
             raise RuntimeError("Groq client not configured.")
 
-        groq_model_pool = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]
+        groq_model_pool = ["llama-3.3-70b-versatile", "llama3-70b-8192", "llama3-8b-8192", "gemma2-9b-it", "mixtral-8x7b-32768"]
         last_error = None
         for attempt in range(1, max_retries + 1):
             target_model = groq_model_pool[(attempt - 1) % len(groq_model_pool)]
@@ -314,10 +317,9 @@ class AIService:
             raise RuntimeError("No Gemini clients configured.")
 
         valid_models = []
-        for m in self.configured_models + ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-lite"]:
-            clean_m = m.replace("gemini-2.5-", "gemini-2.0-").replace("gemini-3.5-", "gemini-2.0-").replace("gemini-3.6-", "gemini-2.0-").replace("gemini-3.7-", "gemini-2.0-")
-            if clean_m and clean_m not in valid_models:
-                valid_models.append(clean_m)
+        for m in self.configured_models + ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash"]:
+            if m and m not in valid_models:
+                valid_models.append(m)
 
         last_error = None
         for attempt in range(1, max_retries + 1):
@@ -611,40 +613,49 @@ Respond STRICTLY in valid JSON matching this schema:
 
     async def check_problem_clarity(self, problem_text: str, qa_history: List[Dict[str, str]] = None) -> ClarityCheckResponse:
         """
-        Stage 2 & 3: Evaluates problem statement clarity.
+        Stage 2 & 3: Evaluates problem statement clarity and conducts interactive Q&A (up to 2 rounds).
         """
+        qa_history = qa_history or []
+        qa_count = len(qa_history)
         qa_context = ""
         if qa_history:
             qa_context = "\nPrevious Clarification Q&A:\n" + "\n".join(
                 [f"Q (Round {item.get('round', idx+1)}): {item.get('question')}\nA: {item.get('answer')}" for idx, item in enumerate(qa_history)]
             )
 
-        prompt = f"""You are an elite Digital Transformation & Enterprise AI Consulting Advisor.
-Analyze the following user problem statement ONLY — do not invent a different problem.
+        prompt = f"""You are an elite Lead Digital Transformation & Enterprise Solution Architect.
+Analyze the following user problem statement and Q&A context.
 
 USER'S EXACT PROBLEM STATEMENT:
 \"\"\"{problem_text}\"\"\"
 {qa_context}
 
-Determine if this problem statement contains enough context to recommend solutions that solve THIS specific problem.
-If key information (scale, current tools, who is affected, desired output) is missing, mark is_clear as false and ask one focused clarification question about THIS problem.
-If clear enough (or enough detail was gathered), mark is_clear as true.
-Clarification questions must stay on the user's stated problem — never switch topics.
+CONSULTATION CONTEXT:
+This is Round {qa_count + 1} of 2 in a structured requirements clarification phase.
+To design a precise enterprise solution architecture, you need specific operational details such as:
+1. Operational scale or volume (e.g. volume of UAT feedback, transactions/day, document count, team size)
+2. Specific target tools, systems, or environments currently in use (e.g. Jira, Azure DevOps, SAP, Excel, custom APIs)
+3. Specific user roles affected and target automation or integration goals
+
+GROUNDING RULES:
+1. If qa_count is 0 (Round 1) and the user problem statement lacks specific volume metrics or target system/tool details, set "is_clear": false and ask ONE sharp, highly relevant, professional clarification question to gather missing context for THIS specific problem.
+2. If qa_count is 1 (Round 2) and key information is still missing, set "is_clear": false and ask ONE final follow-up question. Otherwise, if sufficient context has been provided, set "is_clear": true.
+3. If qa_count >= 2, set "is_clear": true.
+4. Your question MUST stay 100% focused on the user's stated problem statement — NEVER reframe into a different domain.
 
 Respond strictly in valid JSON format matching this schema:
 {{
   "is_clear": boolean,
-  "missing_info": ["item 1", "item 2"],
+  "missing_info": ["Specific missing item 1", "Specific missing item 2"],
   "question": "Single clear follow-up question if is_clear is false, or null if is_clear is true"
 }}
 """
         if not self.has_ai_provider:
-            words = problem_text.split()
-            if len(words) < 8 and not qa_history:
+            if qa_count == 0:
                 return ClarityCheckResponse(
                     is_clear=False,
-                    missing_info=["Target department/team", "Current tool stack", "Scale of operations"],
-                    question="Could you please specify which team or process is experiencing this issue, what tools you currently use, and the scale of operation?"
+                    missing_info=["Target systems/tools currently in use", "Operational volume & team size", "Target integration requirements"],
+                    question="To help us design the optimal digital architecture: Could you please specify which target tools/systems are involved (e.g., Jira, Azure DevOps, Excel), the volume of work, and key team roles?"
                 )
             return ClarityCheckResponse(is_clear=True, missing_info=[], question=None)
 
@@ -655,14 +666,14 @@ Respond strictly in valid JSON format matching this schema:
             return ClarityCheckResponse(**data)
         except Exception as e:
             logger.warning(f"[AI PROVIDER] Clarity check error: {e}. Falling back to rule-based clarity check.")
-            words = problem_text.split()
-            if len(words) < 8 and not qa_history:
+            if qa_count == 0:
                 return ClarityCheckResponse(
                     is_clear=False,
-                    missing_info=["Target department/team", "Current tool stack", "Scale of operations"],
-                    question="Could you please specify which team or process is experiencing this issue, what tools you currently use, and the scale of operation?"
+                    missing_info=["Target systems/tools currently in use", "Operational volume & team size", "Target integration requirements"],
+                    question="To help us design the optimal digital architecture: Could you please specify which target tools/systems are involved (e.g., Jira, Azure DevOps, Excel), the volume of work, and key team roles?"
                 )
             return ClarityCheckResponse(is_clear=True, missing_info=[], question=None)
+
 
 
 
@@ -866,16 +877,25 @@ Evaluate and output JSON matching:
                 
                 # Relevance Gate Check & Tech Stack Enforcer
                 valid_solutions = []
-                for sol in solution_list.solutions:
-                    # Guarantee confirmed user tech_stack is used for solution tools
-                    if tech_stack and isinstance(tech_stack, list) and len(tech_stack) > 0:
-                        sol.tools = list(dict.fromkeys(tech_stack))
+                for idx, sol in enumerate(solution_list.solutions):
+                    # Ensure each solution option gets a distinct, tiered tool subset if sol.tools is missing or generic
+                    if not sol.tools or len(sol.tools) == 0:
+                        if tech_stack and len(tech_stack) > 0:
+                            if idx == 0:
+                                sol.tools = tech_stack[:min(2, len(tech_stack))]
+                            elif idx == 1:
+                                sol.tools = tech_stack[:min(3, len(tech_stack))]
+                            else:
+                                sol.tools = list(dict.fromkeys(tech_stack))
+                        else:
+                            sol.tools = ["Python", "REST APIs"] if idx == 0 else ["PostgreSQL", "Python", "REST APIs"] if idx == 1 else ["PostgreSQL", "FastAPI", "Python", "REST APIs"]
 
-                    eval_res = await self.evaluate_solution_relevance(analysis, sol, problem_text)
-                    if eval_res.is_relevant and eval_res.problem_alignment >= 0.7:
+                    # Quick local relevance check to prevent slow multiple LLM audit calls
+                    local_ok, local_reason = self._local_relevance_pass(analysis, sol, problem_text)
+                    if local_ok:
                         valid_solutions.append(sol)
                     else:
-                        logger.warning(f"[RELEVANCE GATE] Rejected solution '{sol.title}': {eval_res.rejection_reason}")
+                        logger.warning(f"[RELEVANCE GATE] Rejected solution '{sol.title}': {local_reason}")
 
                 if len(valid_solutions) >= 3:
                     logger.info(f"[CONTEXT GENERATED] Successfully generated 3 relevant solution options for {analysis.problem_domain}")
@@ -887,70 +907,75 @@ Evaluate and output JSON matching:
                 logger.warning(f"[AI PROVIDER] Error generating solutions attempt {attempt}: {e}")
 
         logger.warning("[AI PROVIDER] Fast fallback to rule-based structured solutions.")
-        fallback_tools = tech_stack if (tech_stack and len(tech_stack) > 0) else ["Python", "FastAPI", "PostgreSQL", "REST APIs"]
+        user_tools = tech_stack if (tech_stack and len(tech_stack) > 0) else ["Python", "FastAPI", "PostgreSQL", "REST APIs"]
         is_forecast = analysis.forecasting_or_prediction_required or _text_indicates_forecasting(problem_text)
 
         prob_snippet = problem_text[:70].strip() if problem_text else "target operational workflow"
         domain_title = analysis.problem_domain or "Digital Transformation"
 
+        # Intelligently tier tools across solution options
+        sol1_tools = user_tools[:min(2, len(user_tools))] if len(user_tools) > 1 else user_tools
+        sol2_tools = user_tools[:min(3, len(user_tools))]
+        sol3_tools = list(dict.fromkeys(user_tools))
+
         if is_forecast:
             sol1 = SolutionItem(
                 title="Baseline Demand Forecast Workbook & Staffing Planner",
-                approach=f"Excel/Python time-series baseline model (Prophet/statsmodels) with historical data intake to address: {prob_snippet}.",
+                approach=f"Excel/Python time-series baseline model (Prophet/statsmodels) with historical data intake using {', '.join(sol1_tools)} to address: {prob_snippet}.",
                 effort="Low (1-2 weeks)",
                 cost_tier="Low ($)",
-                tools=fallback_tools,
+                tools=sol1_tools,
                 pros=["Fast deployment", "Immediate visibility into staffing and capacity trends", "Low cost"],
                 cons=["Requires manual data export updates", "Basic trend forecasting without deep ML"],
                 risk="Historical data anomalies require manual review before adjusting staffing schedules."
             )
             sol2 = SolutionItem(
                 title="ML Demand Forecasting & Capacity Recommendation Engine",
-                approach=f"Dedicated Python microservice with automated data pipeline, MAPE accuracy monitoring, and capacity alerts to resolve: {prob_snippet}.",
+                approach=f"Dedicated Python microservice with automated data pipeline, MAPE accuracy monitoring, and capacity alerts leveraging {', '.join(sol2_tools)} to resolve: {prob_snippet}.",
                 effort="Medium (1 month)",
                 cost_tier="Medium ($$)",
-                tools=fallback_tools,
+                tools=sol2_tools,
                 pros=["Automated data ingestion", "High forecast accuracy with MAPE tracking", "Proactive alerts"],
                 cons=["Requires initial data cleansing", "Integration overhead with scheduling software"],
                 risk="Model retraining needed periodically as seasonal demand patterns shift."
             )
             sol3 = SolutionItem(
                 title="Enterprise Scenario-Based Capacity Planning Platform",
-                approach=f"Full-scale enterprise demand & capacity management platform with scenario simulation, what-if planning, BI integration, and alert routing for: {prob_snippet}.",
+                approach=f"Full-scale enterprise demand & capacity management platform with scenario simulation, what-if planning, BI integration, and alert routing powered by {', '.join(sol3_tools)} for: {prob_snippet}.",
                 effort="High (2-3 months)",
                 cost_tier="High ($$$)",
-                tools=fallback_tools,
+                tools=sol3_tools,
                 pros=["Multi-scenario simulation", "Enterprise governance and audit logging", "Seamless BI dashboards"],
                 cons=["Longer implementation cycle", "Higher initial infrastructure investment"],
                 risk="Requires cross-departmental alignment for adoption and data governance."
             )
         else:
             sol1 = SolutionItem(
-                title=f"Lightweight Rapid {domain_title} Engine",
-                approach=f"Targeted quick-win script and API workflow utilizing {', '.join(fallback_tools)} to automate core friction points in: {prob_snippet}.",
+                title=f"Starter Automation (Quick-Win Kit)",
+                approach=f"Targeted quick-win workflow using {', '.join(sol1_tools)} to rapidly automate core manual steps for: {prob_snippet}.",
                 effort="Low (1-2 weeks)",
                 cost_tier="Low ($)",
-                tools=fallback_tools,
+                tools=sol1_tools,
                 pros=["Rapid time-to-market", "Low implementation complexity", "Immediate efficiency gains"],
                 cons=["Limited scalability for complex edge cases", "Basic UI capabilities"],
                 risk="Process changes may require script adjustments."
             )
             sol2 = SolutionItem(
-                title=f"Core {domain_title} Platform",
-                approach=f"End-to-end modular solution leveraging {', '.join(fallback_tools)} with centralized backend processing and workflow UI for: {prob_snippet}.",
+                title=f"Standard Business System (Core Platform)",
+                approach=f"End-to-end modular solution leveraging {', '.join(sol2_tools)} with centralized backend processing and intuitive dashboard UI for: {prob_snippet}.",
                 effort="Medium (1 month)",
                 cost_tier="Medium ($$)",
-                tools=fallback_tools,
+                tools=sol2_tools,
                 pros=["Robust automation pipeline", "Scalable data architecture", "Comprehensive monitoring"],
                 cons=["Moderate development effort", "Requires user onboarding"],
                 risk="Ensure legacy data interfaces have reliable uptime."
             )
             sol3 = SolutionItem(
-                title=f"Enterprise {domain_title} Architecture",
-                approach=f"Comprehensive enterprise architecture combining {', '.join(fallback_tools)} with automated monitoring, governance, and BI reporting for: {prob_snippet}.",
+                title=f"Advanced Enterprise Architecture (Full-Scale)",
+                approach=f"Comprehensive full-scale solution combining {', '.join(sol3_tools)} with automated monitoring, governance, and BI reporting for: {prob_snippet}.",
                 effort="High (2-3 months)",
                 cost_tier="High ($$$)",
-                tools=fallback_tools,
+                tools=sol3_tools,
                 pros=["Enterprise grade security & SLA", "Full integration across systems", "Maximum long-term ROI"],
                 cons=["Higher operational cost", "Longer implementation timeline"],
                 risk="Organizational change management is required for adoption."

@@ -88,21 +88,63 @@ export default function SolutionDeck({
         </div>
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-        gap: '24px'
-      }}>
-        {solutions.map((sol, index) => {
-          const isSelected = selectedSolutionId === sol.id || sol.is_selected;
-          const solTools = Array.isArray(sol.tools) && sol.tools.length > 0 ? sol.tools : activeTechStack;
-          const flowchart = getDynamicFlowchartSteps(sol, solTools, index);
-          const isBenefitsOpen = !!showBenefits[sol.id];
+      {(!solutions || !Array.isArray(solutions) || solutions.length === 0) ? (
+        <div className="glass-panel fade-in" style={{
+          padding: '44px 24px',
+          textAlign: 'center',
+          maxWidth: '650px',
+          margin: '20px auto',
+          border: '1px solid rgba(73, 220, 177, 0.35)',
+          borderRadius: '16px',
+          background: 'rgba(8, 14, 16, 0.9)',
+          boxShadow: '0 0 24px rgba(73, 220, 177, 0.15)'
+        }}>
+          <div style={{
+            width: '56px',
+            height: '56px',
+            borderRadius: '50%',
+            background: 'rgba(73, 220, 177, 0.12)',
+            border: '1px solid rgba(73, 220, 177, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+            color: '#49dcb1'
+          }}>
+            <Sparkles size={26} />
+          </div>
+          <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#ffffff', marginBottom: '10px' }}>
+            No Solutions Currently Loaded
+          </h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginBottom: '24px', lineHeight: 1.5 }}>
+            Generate tailored digital transformation solution options for your selected tech stack ({activeTechStack.join(', ')}).
+          </p>
+          <button
+            type="button"
+            onClick={() => onGenerateSolutions && onGenerateSolutions(activeTechStack)}
+            disabled={loading}
+            className="btn-primary"
+            style={{ padding: '12px 28px', margin: '0 auto', fontSize: '0.95rem', fontWeight: 700 }}
+          >
+            {loading ? 'Generating Solutions...' : '✨ Generate Solution Options Now'}
+          </button>
+        </div>
+      ) : (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+          gap: '24px'
+        }}>
+          {solutions.map((sol, index) => {
+            const isSelected = selectedSolutionId === sol.id || sol.is_selected;
+            const solTools = Array.isArray(sol.tools) && sol.tools.length > 0 ? sol.tools : activeTechStack;
+            const flowchart = getDynamicFlowchartSteps(sol, solTools, index);
+            const isBenefitsOpen = !!showBenefits[sol.id];
 
-          return (
-            <div
-              key={sol.id || index}
-              className="glass-card"
+            return (
+              <div
+                key={sol.id || index}
+                className="glass-card"
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -174,7 +216,10 @@ export default function SolutionDeck({
                   border: '1px solid rgba(73, 220, 177, 0.2)',
                   borderRadius: '12px',
                   padding: '14px',
-                  marginBottom: '18px'
+                  marginBottom: '18px',
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column'
                 }}>
                   <p style={{
                     fontSize: '0.72rem',
@@ -190,7 +235,7 @@ export default function SolutionDeck({
                     <Zap size={14} color="#49dcb1" /> DYNAMIC WORKFLOW PIPELINE:
                   </p>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, justifyContent: 'space-evenly' }}>
                     {flowchart.map((fc, fci) => {
                       const IconComp = fc.icon || Cpu;
                       const toolPills = fc.badge ? fc.badge.split(/\s*[\+\,&]\s*/).filter(Boolean) : [];
@@ -250,7 +295,7 @@ export default function SolutionDeck({
                 </div>
 
                 {/* BENEFITS & ADVANTAGES TABULAR DROPDOWN */}
-                <div style={{ marginBottom: '18px' }}>
+                <div style={{ marginTop: 'auto', marginBottom: '0px' }}>
                   <button
                     type="button"
                     onClick={() => toggleBenefits(sol.id)}
@@ -357,6 +402,7 @@ export default function SolutionDeck({
           );
         })}
       </div>
+      )}
     </div>
   );
 }

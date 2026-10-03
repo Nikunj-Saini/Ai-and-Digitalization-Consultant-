@@ -6,10 +6,10 @@ class Settings(BaseSettings):
     GEMINI_API_KEY_2: str = os.getenv("GEMINI_API_KEY_2", "")
     GEMINI_API_KEY_3: str = os.getenv("GEMINI_API_KEY_3", "")
     
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-    GEMINI_MODEL_2: str = os.getenv("GEMINI_MODEL_2", "gemini-1.5-flash")
-    GEMINI_MODEL_3: str = os.getenv("GEMINI_MODEL_3", "gemini-1.5-pro")
-    GEMINI_MODEL_4: str = os.getenv("GEMINI_MODEL_4", "gemini-2.0-flash-lite")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    GEMINI_MODEL_2: str = os.getenv("GEMINI_MODEL_2", "gemini-2.5-pro")
+    GEMINI_MODEL_3: str = os.getenv("GEMINI_MODEL_3", "gemini-1.5-flash")
+    GEMINI_MODEL_4: str = os.getenv("GEMINI_MODEL_4", "gemini-2.5-flash")
     GEMINI_MODEL_5: str = os.getenv("GEMINI_MODEL_5", "gemini-1.5-pro")
     GEMINI_MODEL_6: str = os.getenv("GEMINI_MODEL_6", "gemini-1.5-flash-8b")
 
